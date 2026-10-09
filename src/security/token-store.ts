@@ -33,11 +33,11 @@ async function getMasterPassword(intent: "read" | "write") {
     );
   }
   cachedPassword = await promptPassword({
+    mask: "*",
     message:
       intent === "read"
         ? "Enter master password to unlock Jira tokens"
         : "Create a master password to encrypt Jira tokens",
-    mask: "*",
   });
   return cachedPassword;
 }
@@ -93,11 +93,11 @@ async function saveEncryptedFile(
   ]);
   const tag = cipher.getAuthTag();
   const payload = {
-    version: 1,
-    salt: salt.toString("base64"),
-    iv: iv.toString("base64"),
-    tag: tag.toString("base64"),
     ciphertext: ciphertext.toString("base64"),
+    iv: iv.toString("base64"),
+    salt: salt.toString("base64"),
+    tag: tag.toString("base64"),
+    version: 1,
   };
   await ensureDir(path.dirname(tokenFilePath()));
   await atomicWrite(tokenFilePath(), JSON.stringify(payload, null, 2));
@@ -224,28 +224,28 @@ export async function getAuthStatusForAlias(options: {
     process.env[TOKEN_ENV] === undefined
   ) {
     return {
-      status: "locked",
       reason:
         "Encrypted token store is locked. Set MCP_JIRA_TOKEN_PASSWORD or login interactively.",
+      status: "locked",
     };
   }
   const tokens = await options.tokenStore.get(options.alias);
   if (!tokens) {
     return {
-      status: "missing",
       reason: "No tokens found. Run login to authenticate this account.",
+      status: "missing",
     };
   }
   if (tokens.refreshInvalid) {
     return {
-      status: "invalid",
       reason: `Stored refresh token is invalid. Run \`mcp-multi-jira login ${options.alias}\` to reauthenticate this account.`,
+      status: "invalid",
     };
   }
   if (tokens.expiresAt < Date.now() && !tokens.refreshToken) {
     return {
-      status: "expired",
       reason: "Token expired and no refresh token available. Run login again.",
+      status: "expired",
     };
   }
   return { status: "ok" };

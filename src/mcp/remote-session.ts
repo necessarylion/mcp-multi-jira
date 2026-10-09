@@ -1,12 +1,9 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import type { EventSourceInit } from "eventsource";
 import PQueue from "p-queue";
 import {
+  getMcpTransportUrl,
   isInvalidGrantError,
-  MCP_SERVER_URL,
-  MCP_SSE_URL,
   refreshTokensIfNeeded,
   type StaticClientInfo,
 } from "../oauth/atlassian.js";
@@ -15,10 +12,6 @@ import type { AccountConfig, TokenSet } from "../types.js";
 import { debug, warn } from "../utils/log.js";
 import { PACKAGE_VERSION } from "../version.js";
 import type { ToolDefinition } from "./types.js";
-
-type EventSourceInitWithHeaders = EventSourceInit & {
-  headers?: Record<string, string>;
-};
 
 export class RemoteSession {
   readonly account: AccountConfig;
@@ -76,9 +69,9 @@ export class RemoteSession {
     const alias = this.account.alias;
     const refreshed = await refreshTokensIfNeeded({
       alias,
-      tokenStore: this.tokenStore,
       scopes: this.scopes,
       staticClientInfo: this.staticClientInfo,
+      tokenStore: this.tokenStore,
     });
     this.tokens = refreshed;
     return refreshed;
@@ -200,36 +193,12 @@ export class RemoteSession {
     if (!this.tokens) {
       throw new Error("Missing tokens");
     }
-    const transport = new StreamableHTTPClientTransport(
-      new URL(MCP_SERVER_URL),
-      {
-        requestInit: {
-          headers: {
-            authorization: `Bearer ${this.tokens.accessToken}`,
-          },
-        },
-      }
-    );
-    await this.client.connect(transport);
-    this.connected = true;
-  }
-
-  private async connectSse() {
-    if (!this.tokens) {
-      throw new Error("Missing tokens");
-    }
-    const eventSourceInit: EventSourceInitWithHeaders = {
-      headers: {
-        authorization: `Bearer ${this.tokens.accessToken}`,
-      },
-    };
-    const transport = new SSEClientTransport(new URL(MCP_SSE_URL), {
+    const transport = new StreamableHTTPClientTransport(getMcpTransportUrl(), {
       requestInit: {
         headers: {
           authorization: `Bearer ${this.tokens.accessToken}`,
         },
       },
-      eventSourceInit,
     });
     await this.client.connect(transport);
     this.connected = true;
@@ -240,17 +209,8 @@ export class RemoteSession {
     if (this.connected) {
       return;
     }
-    try {
-      await this.connectStreamableHttp();
-      debug(`[${this.account.alias}] Connected via Streamable HTTP`);
-    } catch (err) {
-      warn(
-        `[${this.account.alias}] Streamable HTTP failed, falling back to SSE: ${String(
-          err
-        )}`
-      );
-      await this.connectSse();
-    }
+    await this.connectStreamableHttp();
+    debug(`[${this.account.alias}] Connected via Streamable HTTP`);
   }
 
   private async refreshAndReconnect() {
@@ -300,15 +260,15 @@ export class RemoteSession {
     return this.queue.add(async () => {
       try {
         return await this.client.callTool({
-          name,
           arguments: args,
+          name,
         });
       } catch (err) {
         if (this.shouldRefreshOnError(err)) {
           await this.refreshAndReconnect();
           return this.client.callTool({
-            name,
             arguments: args,
+            name,
           });
         }
         throw err;

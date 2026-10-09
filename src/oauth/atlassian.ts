@@ -29,15 +29,27 @@ import {
 
 export const DEFAULT_SCOPES = [
   "offline_access",
-  "read:jira-work",
-  "write:jira-work",
-  "read:jira-user",
+  "read:me",
+  "read:account",
+  "read:jira:agent-interface",
+  "write:jira:agent-interface",
+  "search:jira:agent-interface",
+  "read:confluence:agent-interface",
+  "write:confluence:agent-interface",
+  "search:confluence:agent-interface",
+  "search:rovo:agent-interface",
 ];
 
 export const MCP_SERVER_URL =
-  process.env.MCP_JIRA_ENDPOINT ?? "https://mcp.atlassian.com/v1/mcp";
-export const MCP_SSE_URL =
-  process.env.MCP_JIRA_SSE_ENDPOINT ?? "https://mcp.atlassian.com/v1/sse";
+  process.env.MCP_JIRA_ENDPOINT ?? "https://mcp.atlassian.com/v2/mcp";
+
+// v2 hides the real tools behind `discover` and `execute` by default.
+// `tools=all` gives the full tool list, which this proxy needs.
+export function getMcpTransportUrl() {
+  const url = new URL(MCP_SERVER_URL);
+  url.searchParams.set("tools", "all");
+  return url;
+}
 
 export type StaticClientInfo = {
   clientId: string;
@@ -83,8 +95,8 @@ function toTokenSet(tokens: OAuthTokens, fallbackScopes: string[]): TokenSet {
   const expiresIn = tokens.expires_in ?? 0;
   return {
     accessToken: tokens.access_token,
-    refreshToken: tokens.refresh_token,
     expiresAt: Date.now() + expiresIn * 1000,
+    refreshToken: tokens.refresh_token,
     scopes,
     tokenType: tokens.token_type,
   };
@@ -97,10 +109,10 @@ function toOAuthTokens(set: TokenSet): OAuthTokens {
   );
   return {
     access_token: set.accessToken,
-    refresh_token: set.refreshToken,
-    token_type: set.tokenType ?? "Bearer",
-    scope: set.scopes.join(" "),
     expires_in: expiresIn,
+    refresh_token: set.refreshToken,
+    scope: set.scopes.join(" "),
+    token_type: set.tokenType ?? "Bearer",
   };
 }
 
@@ -143,15 +155,15 @@ export class LocalOAuthProvider implements OAuthClientProvider {
 
   get clientMetadata() {
     return {
+      client_name: "mcp-jira",
+      client_uri: "https://github.com/",
+      grant_types: ["authorization_code", "refresh_token"],
       redirect_uris: this.redirectUrlValue ? [this.redirectUrlValue] : [],
+      response_types: ["code"],
+      scope: this.scopes.join(" "),
       token_endpoint_auth_method: this.staticClientInfo?.clientSecret
         ? "client_secret_post"
         : "none",
-      grant_types: ["authorization_code", "refresh_token"],
-      response_types: ["code"],
-      client_name: "mcp-jira",
-      client_uri: "https://github.com/",
-      scope: this.scopes.join(" "),
     };
   }
 
@@ -314,8 +326,8 @@ export async function startCallbackServer(
           return;
         }
         res.writeHead(200, {
-          "content-type": "text/plain",
           connection: "close",
+          "content-type": "text/plain",
         });
         res.end("Authentication complete. You can return to the CLI.");
         resolve(code);
@@ -348,7 +360,7 @@ export async function startCallbackServer(
     throw err;
   });
 
-  return { redirectUri, codePromise, close };
+  return { close, codePromise, redirectUri };
 }
 
 export async function loginWithDynamicOAuth(options: {
@@ -359,10 +371,10 @@ export async function loginWithDynamicOAuth(options: {
 }) {
   const provider = new LocalOAuthProvider({
     alias: options.alias,
-    tokenStore: options.tokenStore,
-    scopes: options.scopes,
     allowRedirect: true,
+    scopes: options.scopes,
     staticClientInfo: options.staticClientInfo,
+    tokenStore: options.tokenStore,
   });
   const redirectUriFromEnv = process.env.MCP_JIRA_REDIRECT_URI;
   let redirectUri = redirectUriFromEnv;
@@ -382,8 +394,8 @@ export async function loginWithDynamicOAuth(options: {
   try {
     provider.setRedirectUrl(callbackRedirectUri);
     const result = await auth(provider, {
-      serverUrl: MCP_SERVER_URL,
       scope: options.scopes.join(" "),
+      serverUrl: MCP_SERVER_URL,
     });
     if (result !== "REDIRECT") {
       await close();
@@ -391,9 +403,9 @@ export async function loginWithDynamicOAuth(options: {
     }
     const code = await codePromise;
     await auth(provider, {
-      serverUrl: MCP_SERVER_URL,
       authorizationCode: code,
       scope: options.scopes.join(" "),
+      serverUrl: MCP_SERVER_URL,
     });
   } finally {
     await close();
@@ -419,10 +431,10 @@ export async function refreshTokensIfNeeded(options: {
   }
   const provider = new LocalOAuthProvider({
     alias: options.alias,
-    tokenStore: options.tokenStore,
-    scopes: options.scopes,
     allowRedirect: false,
+    scopes: options.scopes,
     staticClientInfo: options.staticClientInfo,
+    tokenStore: options.tokenStore,
   });
   const clientInfo = await provider.clientInformation();
   if (!clientInfo) {
@@ -448,8 +460,8 @@ export async function refreshTokensIfNeeded(options: {
     resourceMetadata
   );
   const refreshed = await refreshAuthorization(authServerUrl, {
-    metadata,
     clientInformation: clientInfo,
+    metadata,
     refreshToken: existing.refreshToken,
     resource,
   });

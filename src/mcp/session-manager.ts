@@ -81,9 +81,9 @@ export class SessionManager implements SessionManagerLike {
   ): Promise<AuthStatus> {
     return getAuthStatusForAlias({
       alias,
-      tokenStore: this.tokenStore,
-      storeKind: this.tokenStoreKind,
       allowPrompt: options?.allowPrompt ?? false,
+      storeKind: this.tokenStoreKind,
+      tokenStore: this.tokenStore,
     });
   }
 

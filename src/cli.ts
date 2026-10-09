@@ -140,7 +140,7 @@ async function migrateTokenStore(options: {
     await fromStore.remove(alias);
     migrated += 1;
   }
-  return { migrated, alreadyPresent, missing };
+  return { alreadyPresent, migrated, missing };
 }
 
 function formatAccounts(
@@ -209,9 +209,9 @@ async function resolveAuthStatusForList(options: {
 }): Promise<AuthStatus> {
   const status = await getAuthStatusForAlias({
     alias: options.alias,
-    tokenStore: options.tokenStore,
-    storeKind: options.storeKind,
     allowPrompt: options.allowPrompt,
+    storeKind: options.storeKind,
+    tokenStore: options.tokenStore,
   });
 
   if (status.status !== "ok") {
@@ -226,9 +226,9 @@ async function resolveAuthStatusForList(options: {
   try {
     await refreshTokensIfNeeded({
       alias: options.alias,
-      tokenStore: options.tokenStore,
       scopes: options.scopes,
       staticClientInfo: options.staticClientInfo,
+      tokenStore: options.tokenStore,
     });
     return status;
   } catch (err) {
@@ -238,8 +238,8 @@ async function resolveAuthStatusForList(options: {
         refreshInvalid: true,
       });
       return {
-        status: "invalid",
         reason: `Stored refresh token is invalid. Run \`mcp-multi-jira login ${options.alias}\` to reauthenticate this account.`,
+        status: "invalid",
       };
     }
 
@@ -279,7 +279,7 @@ function extractTextItems(result: JsonRecord): TextContentItem[] {
     const type = typeof entry.type === "string" ? entry.type : "";
     const text = typeof entry.text === "string" ? entry.text : "";
     if (type === "text" && text) {
-      items.push({ type, text });
+      items.push({ text, type });
     }
   }
   return items;
@@ -297,7 +297,19 @@ function parseJsonPayload(text: string): unknown | null {
   }
 }
 
+// MCP v2 wraps tool results as `{ data: {...} }`. v1 returns them bare.
+function unwrapData(payload: unknown): unknown {
+  if (isRecord(payload) && isRecord(payload.data)) {
+    return payload.data;
+  }
+  return payload;
+}
+
 function extractStructuredResult(result: unknown): unknown | null {
+  return unwrapData(extractRawResult(result));
+}
+
+function extractRawResult(result: unknown): unknown | null {
   if (!isRecord(result)) {
     return null;
   }
@@ -368,8 +380,8 @@ function normalizeResource(raw: unknown): ResourceInfo | null {
   }
   return {
     id: cloudId,
-    url,
     name: name ?? url,
+    url,
   };
 }
 
@@ -417,11 +429,11 @@ async function selectResource(
     return resources[0];
   }
   const selected = await select({
-    message: "Select the Jira site to link:",
     choices: resources.map((item) => ({
       name: `${item.name} (${item.url})`,
       value: item.id,
     })),
+    message: "Select the Jira site to link:",
   });
   return resources.find((item) => item.id === selected) ?? resources[0];
 }
@@ -450,9 +462,7 @@ async function fetchUserEmail(
     const result = await session.callTool("atlassianUserInfo", {});
     const payload = extractStructuredResult(result);
     return extractUserEmail(payload);
-  } catch {
-    return;
-  }
+  } catch {}
 }
 
 async function handleLogin(
@@ -468,8 +478,8 @@ async function handleLogin(
   const existingAccount = Boolean(config.accounts[alias]);
   if (config.accounts[alias]) {
     const overwrite = await confirm({
-      message: `Account alias "${alias}" already exists. Re-authenticate and overwrite?`,
       default: false,
+      message: `Account alias "${alias}" already exists. Re-authenticate and overwrite?`,
     });
     if (!overwrite) {
       info("Login cancelled.");
@@ -488,9 +498,9 @@ async function handleLogin(
   const staticClientInfo = getStaticClientInfoFromEnv(options);
   await loginWithDynamicOAuth({
     alias,
-    tokenStore,
     scopes,
     staticClientInfo,
+    tokenStore,
   });
   const tokens = await tokenStore.get(alias);
   if (!tokens) {
@@ -499,8 +509,8 @@ async function handleLogin(
 
   const tempAccount: AccountConfig = {
     alias,
-    site: "",
     cloudId: "",
+    site: "",
   };
   const session = new RemoteSession(
     tempAccount,
@@ -525,10 +535,10 @@ async function handleLogin(
 
   const account: AccountConfig = {
     alias,
-    site: resource?.url ?? "unknown",
     cloudId: resource?.id ?? "unknown",
-    user,
     default: options.default ?? Object.keys(config.accounts).length === 0,
+    site: resource?.url ?? "unknown",
+    user,
   };
 
   await setAccount(account);
@@ -552,11 +562,11 @@ async function handleListAccounts() {
     try {
       const status = await resolveAuthStatusForList({
         alias: account.alias,
-        tokenStore,
-        storeKind,
         allowPrompt: process.stdin.isTTY,
         scopes,
         staticClientInfo,
+        storeKind,
+        tokenStore,
       });
       statusMap.set(account.alias, formatAuthStatus(status));
     } catch (err) {
@@ -576,8 +586,8 @@ async function handleRemove(alias: string) {
     return;
   }
   const confirmed = await confirm({
-    message: `Remove account "${alias}" and delete stored tokens?`,
     default: false,
+    message: `Remove account "${alias}" and delete stored tokens?`,
   });
   if (!confirmed) {
     info("Remove cancelled.");
@@ -652,18 +662,18 @@ async function migrateTokenStoreIfConfirmed(
     return false;
   }
   const shouldMigrate = await confirm({
+    default: true,
     message: `Migrate ${aliases.length} account token(s) from ${describeTokenStore(
       fromStore
     )} to ${describeTokenStore(toStore)}? This will move tokens to the new backend.`,
-    default: true,
   });
   if (!shouldMigrate) {
     return false;
   }
   const result = await migrateTokenStore({
+    aliases,
     from: fromStore,
     to: toStore,
-    aliases,
   });
   info(`Migrated ${result.migrated} account(s) to ${toStore}.`);
   if (result.alreadyPresent > 0) {

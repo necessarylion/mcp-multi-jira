@@ -1,4 +1,21 @@
 {
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
-  "extends": ["ultracite/core"]
+  "extends": ["ultracite/biome/core"],
+  // These rules are new in ultracite 7. They are off because fixing them
+  // needs hand edits to working logic. Turn one on when you want to clean it up.
+  "linter": {
+    "rules": {
+      "performance": { "noAwaitInLoops": "off" },
+      "style": {
+        "useConsistentMethodSignatures": "off",
+        "useConsistentTypeDefinitions": "off",
+        "useDestructuring": "off",
+        "useErrorCause": "off"
+      },
+      "suspicious": {
+        "noEmptyBlockStatements": "off",
+        "noUnnecessaryConditions": "off"
+      }
+    }
+  }
 }

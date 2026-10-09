@@ -29,8 +29,8 @@ test("refreshTokensIfNeeded uses root auth server fallback", async () => {
   const alias = "example";
   await store.set(alias, {
     accessToken: "expired-access",
-    refreshToken: "refresh-token",
     expiresAt: Date.now() - 1000,
+    refreshToken: "refresh-token",
     scopes: ["offline_access"],
     tokenType: "Bearer",
   });
@@ -56,23 +56,23 @@ test("refreshTokensIfNeeded uses root auth server fallback", async () => {
       return Promise.resolve(
         new Response(
           JSON.stringify({
-            issuer: "https://auth.example.com",
             authorization_endpoint: "https://auth.example.com/authorize",
-            token_endpoint: "https://auth.example.com/token",
-            registration_endpoint: "https://auth.example.com/register",
-            response_types_supported: ["code"],
-            response_modes_supported: ["query"],
+            code_challenge_methods_supported: ["S256", "plain"],
             grant_types_supported: ["authorization_code", "refresh_token"],
+            issuer: "https://auth.example.com",
+            registration_endpoint: "https://auth.example.com/register",
+            response_modes_supported: ["query"],
+            response_types_supported: ["code"],
+            revocation_endpoint: "https://auth.example.com/token",
+            token_endpoint: "https://auth.example.com/token",
             token_endpoint_auth_methods_supported: [
               "client_secret_post",
               "none",
             ],
-            revocation_endpoint: "https://auth.example.com/token",
-            code_challenge_methods_supported: ["S256", "plain"],
           }),
           {
-            status: 200,
             headers: { "Content-Type": "application/json" },
+            status: 200,
           }
         )
       );
@@ -82,12 +82,12 @@ test("refreshTokensIfNeeded uses root auth server fallback", async () => {
         new Response(
           JSON.stringify({
             access_token: "new-access",
-            refresh_token: "new-refresh",
-            token_type: "Bearer",
-            scope: "offline_access",
             expires_in: 3600,
+            refresh_token: "new-refresh",
+            scope: "offline_access",
+            token_type: "Bearer",
           }),
-          { status: 200, headers: { "Content-Type": "application/json" } }
+          { headers: { "Content-Type": "application/json" }, status: 200 }
         )
       );
     }
@@ -97,9 +97,9 @@ test("refreshTokensIfNeeded uses root auth server fallback", async () => {
   try {
     const refreshed = await refreshTokensIfNeeded({
       alias,
-      tokenStore: store,
       scopes: ["offline_access"],
       staticClientInfo: { clientId: "client" },
+      tokenStore: store,
     });
 
     expect(refreshed.accessToken).toBe("new-access");
