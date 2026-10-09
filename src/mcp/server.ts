@@ -7,7 +7,7 @@ import type { SessionManagerLike } from "./types.js";
 
 function toolError(message: string): CallToolResult {
   return {
-    content: [{ type: "text" as const, text: message }],
+    content: [{ text: message, type: "text" as const }],
     isError: true,
   };
 }
@@ -90,7 +90,7 @@ function buildToolSchema(inputSchema: ToolInputSchema | undefined) {
   }
   try {
     const remoteSchema = fromJSONSchema(
-      sanitizeInputSchema(inputSchema) ?? { type: "object", properties: {} }
+      sanitizeInputSchema(inputSchema) ?? { properties: {}, type: "object" }
     );
     const shape = getObjectShape(remoteSchema);
     if (!shape) {
@@ -117,8 +117,8 @@ function normalizeToolResult(result: unknown): CallToolResult {
     return {
       content: [
         {
-          type: "text" as const,
           text: JSON.stringify(result.toolResult),
+          type: "text" as const,
         },
       ],
       ...(structuredContent ? { structuredContent } : {}),
@@ -127,8 +127,8 @@ function normalizeToolResult(result: unknown): CallToolResult {
   return {
     content: [
       {
-        type: "text" as const,
         text: JSON.stringify(result),
+        type: "text" as const,
       },
     ],
   };
@@ -139,7 +139,9 @@ async function buildAccountStatusMap(
   accounts: Array<{ alias: string }>
 ) {
   const statusMap = new Map<string, AccountAuthStatus>();
-  const getAccountAuthStatus = sessionManager.getAccountAuthStatus;
+  // bind keeps `this`; a bare method reference loses it.
+  const getAccountAuthStatus =
+    sessionManager.getAccountAuthStatus?.bind(sessionManager);
   if (!getAccountAuthStatus) {
     return statusMap;
   }
@@ -152,8 +154,8 @@ async function buildAccountStatusMap(
         statusMap.set(account.alias, status);
       } catch (err) {
         statusMap.set(account.alias, {
-          status: "unknown",
           reason: String(err),
+          status: "unknown",
         });
       }
     })
@@ -219,7 +221,7 @@ async function loadRemoteTools(
       warn(message);
     }
   }
-  return { toolMap, toolErrors };
+  return { toolErrors, toolMap };
 }
 
 function buildToolDescription(tool: ToolConfig) {
@@ -318,8 +320,8 @@ export async function startLocalServer(
       return {
         content: [
           {
-            type: "text",
             text: summary || "No accounts are configured.",
+            type: "text",
           },
         ],
         structuredContent: {

@@ -33,8 +33,8 @@ function getOrCreateRecord(container: JsonRecord, key: string): JsonRecord {
 
 function createMcpServerEntry(env: Record<string, string>): JsonRecord {
   return {
-    command: "npx",
     args: ["-y", "mcp-multi-jira", "serve"],
+    command: "npx",
     ...(Object.keys(env).length > 0 ? { env } : {}),
   };
 }
@@ -132,8 +132,8 @@ async function removeJiraEntries(
     return true;
   }
   const remove = await confirm({
-    message: `${message} (${jiraKeys.join(", ")}). Remove them?`,
     default: false,
+    message: `${message} (${jiraKeys.join(", ")}). Remove them?`,
   });
   if (!remove) {
     warn(`Skipping config update for ${configPath}.`);
@@ -164,13 +164,13 @@ async function loadClaudeConfig() {
   const globalConfigPath = path.join(home, ".claude.json");
   const mcpFile = await readJsonConfig(mcpServersPath);
   if (mcpFile.exists) {
-    return { config: mcpFile.config, targetPath: mcpServersPath, mode: "mcp" };
+    return { config: mcpFile.config, mode: "mcp", targetPath: mcpServersPath };
   }
   const globalFile = await readJsonConfig(globalConfigPath);
   return {
     config: globalFile.config,
-    targetPath: globalConfigPath,
     mode: "project",
+    targetPath: globalConfigPath,
   };
 }
 
@@ -301,12 +301,12 @@ export async function runInstaller(options?: {
   tokenStore?: TokenStoreKind | string;
 }) {
   const targets = (await checkbox<AgentTarget>({
-    message: "Select which agents to configure:",
     choices: [
       { name: "Cursor", value: "cursor" },
       { name: "OpenAI Codex CLI", value: "codex" },
       { name: "Claude Code CLI", value: "claude" },
     ],
+    message: "Select which agents to configure:",
     required: true,
   })) as AgentTarget[];
 
@@ -320,9 +320,9 @@ export async function runInstaller(options?: {
   const envInput = await promptEnv(envStore);
   const env = buildEnv({
     ...envInput,
-    tokenStore: envStore,
     clientId: defaults.clientId,
     clientSecret: defaults.clientSecret,
+    tokenStore: envStore,
   });
 
   for (const target of targets) {
@@ -334,8 +334,8 @@ export async function runInstaller(options?: {
       try {
         await fs.access(localPath);
         const updateLocal = await confirm({
-          message: `Also update local Cursor config at ${localPath}?`,
           default: false,
+          message: `Also update local Cursor config at ${localPath}?`,
         });
         if (updateLocal) {
           await updateCursorConfig(localPath, env);

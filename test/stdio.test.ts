@@ -14,8 +14,8 @@ function resolveServerScript() {
 test("stdio MCP server accepts connection and routes tool calls", async () => {
   const serverScript = resolveServerScript();
   const transport = new StdioClientTransport({
-    command: process.execPath,
     args: [serverScript],
+    command: process.execPath,
     env: {
       ...process.env,
       MCP_JIRA_LOG_STDERR: "true",
@@ -40,8 +40,8 @@ test("stdio MCP server accepts connection and routes tool calls", async () => {
     expect(mockEcho?.inputSchema.required).not.toContain("cloudId");
 
     const result = await client.callTool({
+      arguments: { account: "mock", hello: "world", jql: "project = TEST" },
       name: "mockEcho",
-      arguments: { account: "mock", jql: "project = TEST", hello: "world" },
     });
 
     const text = result.content.find((item) => item.type === "text");
@@ -50,6 +50,14 @@ test("stdio MCP server accepts connection and routes tool calls", async () => {
       const payload = JSON.parse(text.text);
       expect(payload.hello).toBe("world");
     }
+
+    const accounts = await client.callTool({
+      arguments: {},
+      name: "listJiraAccounts",
+    });
+    expect(accounts.structuredContent).toMatchObject({
+      accounts: [{ alias: "mock", auth: { status: "ok" } }],
+    });
   } finally {
     await client.close().catch(() => undefined);
   }

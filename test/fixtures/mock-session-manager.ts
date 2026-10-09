@@ -6,58 +6,60 @@ import type { AccountConfig } from "../../src/types.ts";
 
 const account: AccountConfig = {
   alias: "mock",
-  site: "mock://jira",
   cloudId: "mock",
+  site: "mock://jira",
 };
 
 const tools: ToolDefinition[] = [
   {
-    name: "mockEcho",
     description: "Echoes arguments back as JSON.",
     inputSchema: {
-      type: "object",
       properties: {
         cloudId: { type: "string" },
         jql: { type: "string" },
       },
       required: ["cloudId", "jql"],
+      type: "object",
     },
+    name: "mockEcho",
   },
   {
-    name: "mockSecondTool",
     description: "Second tool for pass-through tests.",
     inputSchema: {
-      type: "object",
       properties: {
         cloudId: { type: "string" },
         query: { type: "string" },
       },
       required: ["cloudId", "query"],
+      type: "object",
     },
+    name: "mockSecondTool",
   },
 ];
 
 const session = {
-  listTools() {
-    return Promise.resolve(tools);
-  },
   callTool(_name: string, args: Record<string, unknown>) {
     return Promise.resolve({
       content: [
         {
-          type: "text",
           text: JSON.stringify(args),
+          type: "text",
         },
       ],
       structuredContent: args,
     });
   },
+  listTools() {
+    return Promise.resolve(tools);
+  },
 };
 
 export function createMockSessionManager(): SessionManagerLike {
   return {
-    listAccounts() {
-      return [account];
+    // Uses `this` on purpose. It fails if the server calls it unbound.
+    getAccountAuthStatus() {
+      this.listAccounts();
+      return Promise.resolve({ status: "ok" });
     },
     getSession(alias: string) {
       if (alias === account.alias) {
@@ -65,8 +67,8 @@ export function createMockSessionManager(): SessionManagerLike {
       }
       return null;
     },
-    getAccountAuthStatus() {
-      return Promise.resolve({ status: "ok" });
+    listAccounts() {
+      return [account];
     },
   };
 }
